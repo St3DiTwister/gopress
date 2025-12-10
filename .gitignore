@@ -1,0 +1,43 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Go build output
+/build/
+dist/
+out/
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Dependency directories (если используешь tools с go install)
+tools/bin/
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env files (если хранится доступ к БД)
+.env
+.env.local
+.env.*.local
+
+# Docker junk
+docker-data/
