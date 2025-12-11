@@ -2,11 +2,13 @@ package http
 
 import (
 	"encoding/json"
+	"gopress/internal/middleware"
 	"gopress/internal/models"
 	"gopress/internal/repository"
 	jwtpkg "gopress/pkg/jwt"
 	"gopress/pkg/password"
 	"net/http"
+	"time"
 )
 
 type AuthHandler struct {
@@ -24,10 +26,6 @@ func NewAuthHandler(userRepo repository.UserRepo, jwtManager *jwtpkg.Manager) *A
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-type loginResponse struct {
-	Token string `json:"token"`
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -136,4 +134,41 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+type getMeResponse struct {
+	Email     string    `json:"email"`
+	Username  string    `json:"username"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := r.Context()
+	userID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if user == nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(getMeResponse{
+		Email:     user.Email,
+		Username:  user.Username,
+		CreatedAt: user.CreatedAt,
+	})
 }

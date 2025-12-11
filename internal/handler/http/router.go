@@ -1,16 +1,25 @@
 package http
 
-import "net/http"
+import (
+	"gopress/internal/middleware"
+	jwtpkg "gopress/pkg/jwt"
+	"net/http"
+)
+
+type Handlers struct {
+	Auth *AuthHandler
+}
 
 type Router struct {
 	mux *http.ServeMux
 }
 
-func NewRouter(handler *AuthHandler) *Router {
+func NewRouter(h Handlers, jwtManager *jwtpkg.Manager) *Router {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/login", handler.Login)
-	mux.HandleFunc("/register", handler.Register)
+	mux.HandleFunc("/login", h.Auth.Login)
+	mux.HandleFunc("/register", h.Auth.Register)
+	mux.Handle("/me", middleware.RequireAuth(jwtManager, http.HandlerFunc(h.Auth.GetMe)))
 
 	return &Router{mux: mux}
 }

@@ -38,8 +38,11 @@ func main() {
 	userRepo := repository.NewUserRepo(pool)
 
 	authHandler := httphandler.NewAuthHandler(userRepo, jwtManager)
-	router := httphandler.
-		NewRouter(authHandler)
+	handlers := httphandler.Handlers{
+		Auth: authHandler,
+	}
+
+	router := httphandler.NewRouter(handlers, jwtManager)
 
 	srv := &http.Server{
 		Addr:         ":8080",

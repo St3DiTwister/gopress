@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gopress/internal/models"
@@ -12,8 +13,8 @@ import (
 type UserRepo interface {
 	Create(ctx context.Context, u *models.User) error
 	GetByUsername(ctx context.Context, username string) (*models.User, error)
-	GetByID(ctx context.Context, id int) (*models.User, error)
-	Delete(ctx context.Context, id int64) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type userRepo struct {
@@ -61,7 +62,7 @@ func (r *userRepo) GetByUsername(ctx context.Context, username string) (*models.
 	}
 	return &u, nil
 }
-func (r *userRepo) GetByID(ctx context.Context, id int) (*models.User, error) {
+func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	const query = `
 		SELECT id, email, username, password_hash, created_at, updated_at
 		FROM users
@@ -84,7 +85,7 @@ func (r *userRepo) GetByID(ctx context.Context, id int) (*models.User, error) {
 	}
 	return &u, nil
 }
-func (r *userRepo) Delete(ctx context.Context, id int64) error {
+func (r *userRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	const query = `DELETE FROM users WHERE id = $1`
 
 	cmdTag, err := r.pool.Exec(ctx, query, id)
