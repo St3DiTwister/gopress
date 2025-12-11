@@ -125,12 +125,11 @@ func (h *ArticleHandler) ArticlesByID(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		h.getArticleByID(w, r, int64(articleID))
 	case http.MethodPut:
+		h.updateArticle(w, r, int64(articleID))
 	case http.MethodDelete:
-		http.Error(w, "not implemented", http.StatusNotImplemented)
-		return
+		h.deleteArticle(w, r, int64(articleID))
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
 }
 
@@ -162,6 +161,72 @@ func (h *ArticleHandler) getArticleByID(w http.ResponseWriter, r *http.Request, 
 		UpdatedAt: article.UpdatedAt,
 		Username:  article.AuthorUsername,
 	})
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+}
+
+type updateArticleRequest struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+}
+
+func (h *ArticleHandler) updateArticle(w http.ResponseWriter, r *http.Request, articleID int64) {
+	ctx := r.Context()
+
+	userID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req updateArticleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	updated, err := h.articleRepo.UpdateOwned(ctx, articleID, userID, req.Title, req.Content)
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !updated {
+		http.Error(w, "article not found or forbidden", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *ArticleHandler) deleteArticle(w http.ResponseWriter, r *http.Request, articleID int64) {
+	ctx := r.Context()
+
+	userID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	deleted, err := h.articleRepo.DeleteOwned(ctx, articleID, userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if !deleted {
+		http.Error(w, "article not found or forbidden", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

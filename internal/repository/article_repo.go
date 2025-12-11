@@ -15,6 +15,8 @@ type ArticleRepo interface {
 	GetByID(ctx context.Context, id int64) (*models.Article, error)
 	ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*models.Article, error)
 	List(ctx context.Context, limit int, offset int) ([]*models.Article, error)
+	UpdateOwned(ctx context.Context, id int64, authorID uuid.UUID, title, content string) (bool, error)
+	DeleteOwned(ctx context.Context, id int64, authorID uuid.UUID) (bool, error)
 }
 
 type articleRepo struct {
@@ -114,7 +116,7 @@ func (r *articleRepo) List(ctx context.Context, limit int, offset int) ([]*model
 		offset = 0
 	}
 
-	query := `
+	const query = `
 		SELECT a.id, author_id, title, content, a.created_at, a.updated_at, u.username
 		FROM articles a
 		LEFT JOIN users u on u.id = a.author_id
@@ -149,4 +151,44 @@ func (r *articleRepo) List(ctx context.Context, limit int, offset int) ([]*model
 		return nil, fmt.Errorf("get articles: %w", err)
 	}
 	return res, nil
+}
+
+func (r *articleRepo) UpdateOwned(ctx context.Context, id int64, authorID uuid.UUID, title, content string) (bool, error) {
+	const query = `
+		UPDATE articles
+		SET title = $1, content = $2, updated_at = NOW()
+		WHERE id = $3
+			AND author_id = $4
+	`
+
+	res, err := r.pool.Exec(ctx, query, title, content, id, authorID)
+	if err != nil {
+		return false, fmt.Errorf("update owned articles: %w", err)
+	}
+
+	if res.RowsAffected() == 0 {
+		// article isn't found or execute not owner
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (r *articleRepo) DeleteOwned(ctx context.Context, id int64, authorID uuid.UUID) (bool, error) {
+	const query = `
+		DELETE FROM articles
+		WHERE id = $1
+			AND author_id = $2
+	`
+
+	res, err := r.pool.Exec(ctx, query, id, authorID)
+	if err != nil {
+		return false, fmt.Errorf("delete owned articles: %w", err)
+	}
+
+	if res.RowsAffected() == 0 {
+		// article isn't found or execute not owner
+		return false, nil
+	}
+	return true, nil
 }
