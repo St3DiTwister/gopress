@@ -7,7 +7,8 @@ import (
 )
 
 type Handlers struct {
-	Auth *AuthHandler
+	Auth    *AuthHandler
+	Article *ArticleHandler
 }
 
 type Router struct {
@@ -20,6 +21,9 @@ func NewRouter(h Handlers, jwtManager *jwtpkg.Manager) *Router {
 	mux.HandleFunc("/login", h.Auth.Login)
 	mux.HandleFunc("/register", h.Auth.Register)
 	mux.Handle("/me", middleware.RequireAuth(jwtManager, http.HandlerFunc(h.Auth.GetMe)))
+
+	mux.Handle("/articles", middleware.RequireAuth(jwtManager, http.HandlerFunc(h.Article.Articles)))
+	mux.Handle("/articles/", middleware.RequireAuth(jwtManager, http.HandlerFunc(h.Article.ArticlesByID)))
 
 	return &Router{mux: mux}
 }

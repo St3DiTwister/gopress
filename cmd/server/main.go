@@ -36,10 +36,13 @@ func main() {
 	}
 	jwtManager := jwtpkg.NewManager(secret, 24*time.Hour)
 	userRepo := repository.NewUserRepo(pool)
+	articleRepo := repository.NewArticleRepo(pool)
 
 	authHandler := httphandler.NewAuthHandler(userRepo, jwtManager)
+	articleHandler := httphandler.NewArticleHandler(articleRepo)
 	handlers := httphandler.Handlers{
-		Auth: authHandler,
+		Auth:    authHandler,
+		Article: articleHandler,
 	}
 
 	router := httphandler.NewRouter(handlers, jwtManager)
