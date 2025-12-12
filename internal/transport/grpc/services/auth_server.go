@@ -1,23 +1,23 @@
-package grpc
+package services
 
 import (
 	"context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gopress/api/proto/auth"
-	"gopress/internal/models"
-	"gopress/internal/repository"
+	"gopress/internal/app/ports"
+	"gopress/internal/domain/user"
 	jwtpkg "gopress/pkg/jwt"
 	"gopress/pkg/password"
 )
 
 type AuthServer struct {
 	auth.UnimplementedAuthServiceServer
-	userRepo   repository.UserRepo
+	userRepo   ports.UserRepo
 	jwtManager *jwtpkg.Manager
 }
 
-func NewAuthServer(userRepo repository.UserRepo, jwtManager *jwtpkg.Manager) *AuthServer {
+func NewAuthServer(userRepo ports.UserRepo, jwtManager *jwtpkg.Manager) *AuthServer {
 	return &AuthServer{
 		userRepo:   userRepo,
 		jwtManager: jwtManager,
@@ -34,37 +34,37 @@ func (s *AuthServer) Register(ctx context.Context, req *auth.RegisterRequest) (*
 		return nil, status.Error(codes.Internal, "failed to hash password")
 	}
 
-	user := &models.User{
+	u := &user.User{
 		Email:    req.Email,
 		Username: req.Username,
 		Password: hashed,
 	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
-		return nil, status.Error(codes.Internal, "failed to create user")
+	if err := s.userRepo.Create(ctx, u); err != nil {
+		return nil, status.Error(codes.Internal, "failed to create u")
 	}
 
 	return &auth.RegisterResponse{
-		Id:       user.ID.String(),
-		Username: user.Username,
-		Email:    user.Email,
+		Id:       u.ID.String(),
+		Username: u.Username,
+		Email:    u.Email,
 	}, nil
 }
 
 func (s *AuthServer) Login(ctx context.Context, req *auth.LoginRequest) (*auth.LoginResponse, error) {
-	user, err := s.userRepo.GetByUsername(ctx, req.Username)
+	u, err := s.userRepo.GetByUsername(ctx, req.Username)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "internal error")
 	}
-	if user == nil {
+	if u == nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid username or password")
 	}
 
-	if !password.Check(user.Password, req.Password) {
+	if !password.Check(u.Password, req.Password) {
 		return nil, status.Error(codes.Unauthenticated, "invalid username or password")
 	}
 
-	token, err := s.jwtManager.GenerateToken(user.ID, user.Username)
+	token, err := s.jwtManager.GenerateToken(u.ID, u.Username)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to generate token")
 	}

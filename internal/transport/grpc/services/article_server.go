@@ -1,22 +1,22 @@
-package grpc
+package services
 
 import (
 	"context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gopress/internal/app/ports"
+	"gopress/internal/domain/article"
+	"gopress/internal/transport/grpc/interceptor"
 
 	articlepb "gopress/api/proto/article"
-	"gopress/internal/grpc/interceptor"
-	"gopress/internal/models"
-	"gopress/internal/repository"
 )
 
 type ArticleServer struct {
 	articlepb.UnimplementedArticleServiceServer
-	repo repository.ArticleRepo
+	repo ports.ArticleRepo
 }
 
-func NewArticleServer(repo repository.ArticleRepo) *ArticleServer {
+func NewArticleServer(repo ports.ArticleRepo) *ArticleServer {
 	return &ArticleServer{repo: repo}
 }
 
@@ -64,7 +64,7 @@ func (s *ArticleServer) Create(ctx context.Context, req *articlepb.CreateArticle
 		return nil, status.Error(codes.InvalidArgument, "title and content required")
 	}
 
-	a := &models.Article{
+	a := &article.Article{
 		AuthorID: userID,
 		Title:    title,
 		Content:  content,
@@ -126,7 +126,7 @@ func (s *ArticleServer) Delete(ctx context.Context, req *articlepb.DeleteArticle
 	return &articlepb.DeleteArticleResponse{Status: "ok"}, nil
 }
 
-func mapArticle(a *models.Article) *articlepb.Article {
+func mapArticle(a *article.Article) *articlepb.Article {
 	var createdUnix int64
 	var updatedUnix int64
 	if !a.CreatedAt.IsZero() {

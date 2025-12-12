@@ -7,25 +7,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gopress/internal/models"
+	"gopress/internal/app/ports"
+	"gopress/internal/domain/user"
 )
-
-type UserRepo interface {
-	Create(ctx context.Context, u *models.User) error
-	GetByUsername(ctx context.Context, username string) (*models.User, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
-	Delete(ctx context.Context, id uuid.UUID) error
-}
 
 type userRepo struct {
 	pool *pgxpool.Pool
 }
 
-func NewUserRepo(pool *pgxpool.Pool) UserRepo {
+func NewUserRepo(pool *pgxpool.Pool) ports.UserRepo {
 	return &userRepo{pool: pool}
 }
 
-func (r *userRepo) Create(ctx context.Context, u *models.User) error {
+func (r *userRepo) Create(ctx context.Context, u *user.User) error {
 	const query = `
 		INSERT INTO users (email, username, password_hash)
 		VALUES ($1, $2, $3)
@@ -39,13 +33,13 @@ func (r *userRepo) Create(ctx context.Context, u *models.User) error {
 
 	return nil
 }
-func (r *userRepo) GetByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *userRepo) GetByUsername(ctx context.Context, username string) (*user.User, error) {
 	const query = `
 		SELECT id, email, username, password_hash, created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`
-	var u models.User
+	var u user.User
 	err := r.pool.QueryRow(ctx, query, username).Scan(
 		&u.ID,
 		&u.Email,
@@ -62,13 +56,13 @@ func (r *userRepo) GetByUsername(ctx context.Context, username string) (*models.
 	}
 	return &u, nil
 }
-func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
 	const query = `
 		SELECT id, email, username, password_hash, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
-	var u models.User
+	var u user.User
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&u.ID,
 		&u.Email,

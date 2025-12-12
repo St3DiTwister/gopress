@@ -7,27 +7,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gopress/internal/models"
+	"gopress/internal/app/ports"
+	"gopress/internal/domain/article"
 )
-
-type ArticleRepo interface {
-	Create(ctx context.Context, a *models.Article) error
-	GetByID(ctx context.Context, id int64) (*models.Article, error)
-	ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*models.Article, error)
-	List(ctx context.Context, limit int, offset int) ([]*models.Article, error)
-	UpdateOwned(ctx context.Context, id int64, authorID uuid.UUID, title, content string) (bool, error)
-	DeleteOwned(ctx context.Context, id int64, authorID uuid.UUID) (bool, error)
-}
 
 type articleRepo struct {
 	pool *pgxpool.Pool
 }
 
-func NewArticleRepo(pool *pgxpool.Pool) ArticleRepo {
+func NewArticleRepo(pool *pgxpool.Pool) ports.ArticleRepo {
 	return &articleRepo{pool: pool}
 }
 
-func (r *articleRepo) Create(ctx context.Context, a *models.Article) error {
+func (r *articleRepo) Create(ctx context.Context, a *article.Article) error {
 	const query = `
         INSERT INTO articles (author_id, title, content)
         VALUES ($1, $2, $3)
@@ -41,7 +33,7 @@ func (r *articleRepo) Create(ctx context.Context, a *models.Article) error {
 	return nil
 }
 
-func (r *articleRepo) GetByID(ctx context.Context, id int64) (*models.Article, error) {
+func (r *articleRepo) GetByID(ctx context.Context, id int64) (*article.Article, error) {
 	const query = `
         SELECT a.id, title, content, author_id, a.created_at, a.updated_at, u.username
         FROM articles a
@@ -49,7 +41,7 @@ func (r *articleRepo) GetByID(ctx context.Context, id int64) (*models.Article, e
         WHERE a.id = $1
     `
 
-	var a models.Article
+	var a article.Article
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&a.ID,
 		&a.Title,
@@ -69,7 +61,7 @@ func (r *articleRepo) GetByID(ctx context.Context, id int64) (*models.Article, e
 	return &a, nil
 }
 
-func (r *articleRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*models.Article, error) {
+func (r *articleRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*article.Article, error) {
 	const query = `
 		SELECT a.id, a.title, a.content, a.author_id, a.created_at, a.updated_at, u.username
 		FROM articles a
@@ -84,9 +76,9 @@ func (r *articleRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*
 	}
 	defer rows.Close()
 
-	var res []*models.Article
+	var res []*article.Article
 	for rows.Next() {
-		var a models.Article
+		var a article.Article
 		if err := rows.Scan(
 			&a.ID,
 			&a.Title,
@@ -108,7 +100,7 @@ func (r *articleRepo) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*
 	return res, nil
 }
 
-func (r *articleRepo) List(ctx context.Context, limit int, offset int) ([]*models.Article, error) {
+func (r *articleRepo) List(ctx context.Context, limit int, offset int) ([]*article.Article, error) {
 	if limit < 1 || limit > 20 {
 		limit = 20
 	}
@@ -130,9 +122,9 @@ func (r *articleRepo) List(ctx context.Context, limit int, offset int) ([]*model
 	}
 	defer rows.Close()
 
-	var res []*models.Article
+	var res []*article.Article
 	for rows.Next() {
-		var a models.Article
+		var a article.Article
 		if err := rows.Scan(
 			&a.ID,
 			&a.AuthorID,

@@ -1,12 +1,13 @@
 package grpc
 
 import (
+	"gopress/internal/app/ports"
+	"gopress/internal/transport/grpc/interceptor"
+	"gopress/internal/transport/grpc/services"
 	"net"
 
 	articlepb "gopress/api/proto/article"
 	authpb "gopress/api/proto/auth"
-	"gopress/internal/grpc/interceptor"
-	"gopress/internal/repository"
 	jwtpkg "gopress/pkg/jwt"
 
 	"google.golang.org/grpc"
@@ -18,7 +19,7 @@ type Server struct {
 	addr string
 }
 
-func NewServer(userRepo repository.UserRepo, articleRepo repository.ArticleRepo, jwtManager *jwtpkg.Manager, addr string) (*Server, error) {
+func NewServer(userRepo ports.UserRepo, articleRepo ports.ArticleRepo, jwtManager *jwtpkg.Manager, addr string) (*Server, error) {
 	authI := interceptor.NewAuthInterceptor(jwtManager, []string{
 		// публичные auth методы:
 		"/auth.AuthService/Register",
@@ -34,8 +35,8 @@ func NewServer(userRepo repository.UserRepo, articleRepo repository.ArticleRepo,
 	)
 
 	// регистрируем сервисы
-	authpb.RegisterAuthServiceServer(grpcSrv, NewAuthServer(userRepo, jwtManager))
-	articlepb.RegisterArticleServiceServer(grpcSrv, NewArticleServer(articleRepo))
+	authpb.RegisterAuthServiceServer(grpcSrv, services.NewAuthServer(userRepo, jwtManager))
+	articlepb.RegisterArticleServiceServer(grpcSrv, services.NewArticleServer(articleRepo))
 
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {

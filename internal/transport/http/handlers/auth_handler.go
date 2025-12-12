@@ -1,25 +1,22 @@
-package http
+package handlers
 
 import (
 	"encoding/json"
-	"gopress/internal/middleware"
-	"gopress/internal/models"
-	"gopress/internal/repository"
-	jwtpkg "gopress/pkg/jwt"
-	"gopress/pkg/password"
+	"errors"
+
+	authSvc "gopress/internal/app/auth"
+	"gopress/internal/transport/http/middleware"
 	"net/http"
 	"time"
 )
 
 type AuthHandler struct {
-	userRepo   repository.UserRepo
-	jwtManager *jwtpkg.Manager
+	service *authSvc.Service
 }
 
-func NewAuthHandler(userRepo repository.UserRepo, jwtManager *jwtpkg.Manager) *AuthHandler {
+func NewAuthHandler(service *authSvc.Service) *AuthHandler {
 	return &AuthHandler{
-		userRepo:   userRepo,
-		jwtManager: jwtManager,
+		service: service,
 	}
 }
 
@@ -40,26 +37,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-
-	user, err := h.userRepo.GetByUsername(ctx, req.Username)
+	token, err := h.service.Login(r.Context(), req.Username, req.Password)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if user == nil {
-		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
-		return
-	}
-
-	if !password.Check(user.Password, req.Password) {
-		http.Error(w, "invalid username or password", http.StatusUnauthorized)
+		if errors.Is(err, authSvc.ErrInvalidData) {
+			http.Error(w, "invalid username or password", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	token, err := h.jwtManager.GenerateToken(user.ID, user.Username)
-	if err != nil {
-		http.Error(w, "failed to generate token", http.StatusInternalServerError)
+	if token == "" {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -104,32 +93,21 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" || req.Email == "" || req.Password == "" {
-		http.Error(w, "empty fields", http.StatusBadRequest)
-		return
-	}
-
-	hashed, err := password.Hash(req.Password)
+	ctx := r.Context()
+	u, err := h.service.Register(ctx, req.Username, req.Email, req.Password)
 	if err != nil {
-		http.Error(w, "failed to hash password", http.StatusInternalServerError)
-		return
-	}
-
-	user := &models.User{
-		Email:    req.Email,
-		Username: req.Username,
-		Password: hashed,
-	}
-
-	if err := h.userRepo.Create(r.Context(), user); err != nil {
-		http.Error(w, "failed to create user", http.StatusInternalServerError)
+		if errors.Is(err, authSvc.ErrInvalidData) {
+			http.Error(w, "invalid data", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	resp := registerResponse{
-		ID:       user.ID.String(),
-		Username: user.Username,
-		Email:    user.Email,
+		ID:       u.ID.String(),
+		Username: u.Username,
+		Email:    u.Email,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -155,20 +133,20 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userRepo.GetByID(ctx, userID)
+	u, err := h.service.GetMe(ctx, userID)
 	if err != nil {
+		if errors.Is(err, authSvc.ErrUserNotFound) {
+			http.Error(w, "user not found", http.StatusUnauthorized)
+			return
+		}
 		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if user == nil {
-		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(getMeResponse{
-		Email:     user.Email,
-		Username:  user.Username,
-		CreatedAt: user.CreatedAt,
+		Email:     u.Email,
+		Username:  u.Username,
+		CreatedAt: u.CreatedAt,
 	})
 }

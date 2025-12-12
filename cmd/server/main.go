@@ -4,6 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	articleSvc "gopress/internal/app/article"
+	authSvc "gopress/internal/app/auth"
+	"gopress/internal/infra/database"
+	"gopress/internal/infra/repository"
+	"gopress/internal/transport/grpc"
+	httptransport "gopress/internal/transport/http"
+	"gopress/internal/transport/http/handlers"
 	"log"
 	"net/http"
 	"os"
@@ -12,10 +19,6 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"gopress/internal/database"
-	"gopress/internal/grpc"
-	httphandler "gopress/internal/handler/http"
-	"gopress/internal/repository"
 	jwtpkg "gopress/pkg/jwt"
 )
 
@@ -42,14 +45,17 @@ func main() {
 	userRepo := repository.NewUserRepo(pool)
 	articleRepo := repository.NewArticleRepo(pool)
 
-	authHandler := httphandler.NewAuthHandler(userRepo, jwtManager)
-	articleHandler := httphandler.NewArticleHandler(articleRepo)
-	handlers := httphandler.Handlers{
+	userService := authSvc.NewService(userRepo, jwtManager)
+	articleService := articleSvc.NewService(articleRepo)
+
+	authHandler := handlers.NewAuthHandler(userService)
+	articleHandler := handlers.NewArticleHandler(articleService)
+	httpHandlers := httptransport.Handlers{
 		Auth:    authHandler,
 		Article: articleHandler,
 	}
 
-	router := httphandler.NewRouter(handlers, jwtManager)
+	router := httptransport.NewRouter(httpHandlers, jwtManager)
 	httpServer := &http.Server{
 		Addr:         ":8080",
 		Handler:      router.Handler(),

@@ -1,14 +1,15 @@
 package http
 
 import (
-	"gopress/internal/middleware"
+	"gopress/internal/transport/http/handlers"
+	"gopress/internal/transport/http/middleware"
 	jwtpkg "gopress/pkg/jwt"
 	"net/http"
 )
 
 type Handlers struct {
-	Auth    *AuthHandler
-	Article *ArticleHandler
+	Auth    *handlers.AuthHandler
+	Article *handlers.ArticleHandler
 }
 
 type Router struct {
