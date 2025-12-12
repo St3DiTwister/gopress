@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package article;
+
+option go_package = "api/proto/article;article";
+
+service ArticleService {
+    // public
+    rpc List(ListArticlesRequest) returns (ListArticlesResponse);
+    rpc Get(GetArticleRequest) returns (GetArticleResponse);
+
+    // protected (JWT в metadata: authorization: Bearer <token>)
+    rpc Create(CreateArticleRequest) returns (CreateArticleResponse);
+    rpc Update(UpdateArticleRequest) returns (UpdateArticleResponse);
+    rpc Delete(DeleteArticleRequest) returns (DeleteArticleResponse);
+}
+
+message Article {
+    int64 id = 1;
+    string title = 2;
+    string content = 3;
+
+    string author_id = 4;
+    string author_username = 5;
+
+    int64 created_at_unix = 6;
+    int64 updated_at_unix = 7;
+}
+
+message ListArticlesRequest {
+    int32 limit = 1;
+    int32 offset = 2;
+}
+
+message ListArticlesResponse {
+    repeated Article articles = 1;
+}
+
+message GetArticleRequest {
+    int64 id = 1;
+}
+
+message GetArticleResponse {
+    Article article = 1;
+}
+
+message CreateArticleRequest {
+    string title = 1;
+    string content = 2;
+}
+
+message CreateArticleResponse {
+    string status = 1;
+    int64 id = 2;
+}
+
+message UpdateArticleRequest {
+    int64 id = 1;
+    string title = 2;
+    string content = 3;
+}
+
+message UpdateArticleResponse {
+    string status = 1;
+}
+
+message DeleteArticleRequest {
+    int64 id = 1;
+}
+
+message DeleteArticleResponse {
+    string status = 1;
+}

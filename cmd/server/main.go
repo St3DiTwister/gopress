@@ -4,22 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/joho/godotenv"
-	"gopress/internal/database"
-	"gopress/internal/repository"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+	"gopress/internal/database"
+	"gopress/internal/grpc"
 	httphandler "gopress/internal/handler/http"
+	"gopress/internal/repository"
 	jwtpkg "gopress/pkg/jwt"
 )
 
 func main() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		fmt.Println("error loading .env:", err)
+	if err := godotenv.Load(".env"); err != nil {
+		fmt.Println("Warning: .env not loaded:", err)
 	}
 
 	ctx := context.Background()
@@ -30,11 +32,13 @@ func main() {
 	}
 	defer db.Close()
 	pool := db.Pool()
+
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		log.Fatal("JWT_SECRET not set")
+		log.Fatal("JWT_SECRET not set in environment")
 	}
 	jwtManager := jwtpkg.NewManager(secret, 24*time.Hour)
+
 	userRepo := repository.NewUserRepo(pool)
 	articleRepo := repository.NewArticleRepo(pool)
 
@@ -46,8 +50,7 @@ func main() {
 	}
 
 	router := httphandler.NewRouter(handlers, jwtManager)
-
-	srv := &http.Server{
+	httpServer := &http.Server{
 		Addr:         ":8080",
 		Handler:      router.Handler(),
 		ReadTimeout:  5 * time.Second,
@@ -55,9 +58,47 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Println("HTTP server is listening on", srv.Addr)
-
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("server error: %v", err)
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = ":50051"
+	} else if grpcPort[0] != ':' {
+		grpcPort = ":" + grpcPort
 	}
+
+	grpcServer, err := grpc.NewServer(userRepo, articleRepo, jwtManager, grpcPort)
+	if err != nil {
+		log.Fatal("Failed to create gRPC server:", err)
+	}
+
+	go func() {
+		if err := grpcServer.Start(); err != nil {
+			log.Printf("gRPC server error: %v", err)
+		}
+	}()
+
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("HTTP server error: %v", err)
+		}
+	}()
+
+	log.Println("HTTP server is listening on", httpServer.Addr)
+	log.Println("gRPC server is listening on", grpcPort)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	log.Println("Shutting down servers...")
+
+	ctxShutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctxShutdown); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
+
+	grpcServer.Stop()
+
+	log.Println("Servers stopped gracefully.")
 }
